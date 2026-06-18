@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2×2 Rubik's Cube</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #030712; font-family: system-ui, -apple-system, sans-serif; color: white; }
+    .p3d { transform-style: preserve-3d; }
+    .no-sel { user-select: none; -webkit-user-select: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/jsx" id="app-src">
+    const { useState, useCallback, useRef, useEffect } = React;
+
+    /* ── Cube state & logic ─────────────────────────────────────────────── */
+
+    const SOLVED = { U:["W","W","W","W"], D:["Y","Y","Y","Y"], F:["R","R","R","R"], B:["O","O","O","O"], L:["B","B","B","B"], R:["G","G","G","G"] };
+    const HEX   = { W:"#FFFFFF", Y:"#FFD500", R:"#C41E3A", O:"#FF5800", B:"#0051A2", G:"#009B48" };
+    const ACCENT = { U:"#FFFFFF", D:"#FFD500", F:"#C41E3A", B:"#FF5800", L:"#0051A2", R:"#009B48" };
+    const MOVES  = ["U","U'","D","D'","L","L'","R","R'","F","F'","B","B'"];
+    const KEYS   = { u:"U", U:"U'", d:"D", D:"D'", l:"L", L:"L'", r:"R", R:"R'", f:"F", F:"F'", b:"B", B:"B'" };
+
+    const cp = s => ({ U:[...s.U],D:[...s.D],F:[...s.F],B:[...s.B],L:[...s.L],R:[...s.R] });
+    const cw  = f => [f[2],f[0],f[3],f[1]];
+    const ccw = f => [f[1],f[3],f[0],f[2]];
+
+    function move(state, m) {
+      const s = cp(state);
+      switch(m) {
+        case "U":  { s.U=cw(state.U);  const t=[state.F[0],state.F[1]]; s.F[0]=state.L[0];s.F[1]=state.L[1];s.L[0]=state.B[1];s.L[1]=state.B[0];s.B[0]=state.R[1];s.B[1]=state.R[0];s.R[0]=t[0];s.R[1]=t[1]; break; }
+        case "U'": { s.U=ccw(state.U); const t=[state.F[0],state.F[1]]; s.F[0]=state.R[0];s.F[1]=state.R[1];s.R[0]=state.B[1];s.R[1]=state.B[0];s.B[0]=state.L[1];s.B[1]=state.L[0];s.L[0]=t[0];s.L[1]=t[1]; break; }
+        case "D":  { s.D=cw(state.D);  const t=[state.F[2],state.F[3]]; s.F[2]=state.R[2];s.F[3]=state.R[3];s.R[2]=state.B[3];s.R[3]=state.B[2];s.B[2]=state.L[3];s.B[3]=state.L[2];s.L[2]=t[0];s.L[3]=t[1]; break; }
+        case "D'": { s.D=ccw(state.D); const t=[state.F[2],state.F[3]]; s.F[2]=state.L[2];s.F[3]=state.L[3];s.L[2]=state.B[3];s.L[3]=state.B[2];s.B[2]=state.R[3];s.B[3]=state.R[2];s.R[2]=t[0];s.R[3]=t[1]; break; }
+        case "R":  { s.R=cw(state.R);  const t=[state.U[1],state.U[3]]; s.U[1]=state.F[1];s.U[3]=state.F[3];s.F[1]=state.D[1];s.F[3]=state.D[3];s.D[1]=state.B[2];s.D[3]=state.B[0];s.B[0]=t[1];s.B[2]=t[0]; break; }
+        case "R'": { s.R=ccw(state.R); const t=[state.U[1],state.U[3]]; s.U[1]=state.B[2];s.U[3]=state.B[0];s.B[0]=state.D[3];s.B[2]=state.D[1];s.D[1]=state.F[1];s.D[3]=state.F[3];s.F[1]=t[0];s.F[3]=t[1]; break; }
+        case "L":  { s.L=cw(state.L);  const t=[state.U[0],state.U[2]]; s.U[0]=state.B[3];s.U[2]=state.B[1];s.B[1]=state.D[2];s.B[3]=state.D[0];s.D[0]=state.F[0];s.D[2]=state.F[2];s.F[0]=t[0];s.F[2]=t[1]; break; }
+        case "L'": { s.L=ccw(state.L); const t=[state.U[0],state.U[2]]; s.U[0]=state.F[0];s.U[2]=state.F[2];s.F[0]=state.D[0];s.F[2]=state.D[2];s.D[0]=state.B[3];s.D[2]=state.B[1];s.B[1]=t[1];s.B[3]=t[0]; break; }
+        case "F":  { s.F=cw(state.F);  const t=[state.U[2],state.U[3]]; s.U[2]=state.L[3];s.U[3]=state.L[1];s.L[1]=state.D[0];s.L[3]=state.D[1];s.D[0]=state.R[2];s.D[1]=state.R[0];s.R[0]=t[0];s.R[2]=t[1]; break; }
+        case "F'": { s.F=ccw(state.F); const t=[state.U[2],state.U[3]]; s.U[2]=state.R[0];s.U[3]=state.R[2];s.R[0]=state.D[1];s.R[2]=state.D[0];s.D[0]=state.L[1];s.D[1]=state.L[3];s.L[1]=t[1];s.L[3]=t[0]; break; }
+        case "B":  { s.B=cw(state.B);  const t=[state.U[0],state.U[1]]; s.U[0]=state.R[1];s.U[1]=state.R[3];s.R[1]=state.D[3];s.R[3]=state.D[2];s.D[2]=state.L[0];s.D[3]=state.L[2];s.L[0]=t[1];s.L[2]=t[0]; break; }
+        case "B'": { s.B=ccw(state.B); const t=[state.U[0],state.U[1]]; s.U[0]=state.L[2];s.U[1]=state.L[0];s.L[0]=state.D[2];s.L[2]=state.D[3];s.D[2]=state.R[3];s.D[3]=state.R[1];s.R[1]=t[0];s.R[3]=t[1]; break; }
+      }
+      return s;
+    }
+
+    const solved = s => ["U","D","F","B","L","R"].every(f => s[f].every(c => c === s[f][0]));
+
+    function scramble() {
+      let s = cp(SOLVED), hist = [];
+      const n = 10 + Math.floor(Math.random() * 11);
+      for (let i = 0; i < n; i++) { const m = MOVES[Math.floor(Math.random() * 12)]; s = move(s,m); hist.push(m); }
+      if (solved(s)) return scramble();
+      return { state: s, hist };
+    }
+
+    /* ── 3-D face component ─────────────────────────────────────────────── */
+
+    const SZ = 160; // face px
+    const FT = {
+      F: `translateZ(${SZ/2}px)`,
+      B: `rotateY(180deg) translateZ(${SZ/2}px)`,
+      U: `rotateX(90deg) translateZ(${SZ/2}px)`,
+      D: `rotateX(-90deg) translateZ(${SZ/2}px)`,
+      L: `rotateY(-90deg) translateZ(${SZ/2}px)`,
+      R: `rotateY(90deg) translateZ(${SZ/2}px)`,
+    };
+    // B face: rotateY(180deg) mirrors X, so swap column order to display correctly from outside
+    const SO = { F:[0,1,2,3], B:[1,0,3,2], U:[0,1,2,3], D:[0,1,2,3], L:[0,1,2,3], R:[0,1,2,3] };
+
+    function Face3D({ name, stickers, onCW, onCCW }) {
+      const [over, setOver] = useState(false);
+      const lightText = name === 'F' || name === 'B' || name === 'L' || name === 'R';
+      return (
+        <div
+          style={{ position:'absolute', width:SZ, height:SZ, transform:FT[name], transformStyle:'preserve-3d' }}
+          onMouseEnter={() => setOver(true)}
+          onMouseLeave={() => setOver(false)}
+        >
+          {/* backing */}
+          <div style={{ position:'absolute', inset:0, background:'#18181b', borderRadius:8, border:'3px solid #27272a' }} />
+          {/* sticker grid */}
+          <div style={{ position:'absolute', inset:7, display:'grid', gridTemplateColumns:'1fr 1fr', gap:5 }}>
+            {SO[name].map(i => (
+              <div key={i} style={{
+                background: HEX[stickers[i]],
+                borderRadius:5,
+                border:'2.5px solid rgba(0,0,0,0.4)',
+                boxShadow:'inset 0 2px 3px rgba(255,255,255,0.18),inset 0 -1px 2px rgba(0,0,0,0.3)',
+              }} />
+            ))}
+          </div>
+          {/* face label */}
+          <div style={{ position:'absolute', bottom:4, right:6, fontSize:10, fontWeight:700, fontFamily:'monospace', color:ACCENT[name], opacity:0.6, pointerEvents:'none', textShadow:'0 0 4px rgba(0,0,0,0.9)' }}>{name}</div>
+          {/* hover overlay */}
+          {over && (
+            <div
+              style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.62)', borderRadius:7, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6 }}
+              onMouseEnter={() => setOver(true)}
+              onMouseLeave={() => setOver(false)}
+            >
+              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                <Btn icon="↺" title={`${name}' – counter-clockwise`} onClick={e => { e.stopPropagation(); onCCW(); }} onDown={e => e.stopPropagation()} />
+                <div style={{ width:32, height:32, borderRadius:'50%', background:ACCENT[name], display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:800, fontFamily:'monospace', color: lightText ? '#fff' : '#111', border:'2px solid rgba(255,255,255,0.2)' }}>{name}</div>
+                <Btn icon="↻" title={`${name} – clockwise`}         onClick={e => { e.stopPropagation(); onCW();  }} onDown={e => e.stopPropagation()} />
+              </div>
+              <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', fontFamily:'monospace' }}>{name}' &nbsp;·&nbsp; {name}</div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Btn({ icon, title, onClick, onDown }) {
+      const [h, setH] = useState(false);
+      return (
+        <button
+          title={title}
+          onMouseDown={onDown}
+          onClick={onClick}
+          onMouseEnter={() => setH(true)}
+          onMouseLeave={() => setH(false)}
+          style={{
+            width:44, height:44, borderRadius:'50%', border:'2px solid rgba(147,197,253,0.35)',
+            background: h ? 'rgba(96,165,250,0.95)' : 'rgba(37,99,235,0.9)',
+            color:'white', fontSize:21, cursor:'pointer',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            boxShadow:'0 2px 10px rgba(0,0,0,0.5)', transition:'background 0.1s',
+          }}
+        >{icon}</button>
+      );
+    }
+
+    /* ── Orbitable 3-D cube ──────────────────────────────────────────────── */
+
+    function Cube3D({ cube, onMove }) {
+      const [rx, setRx] = useState(-26);
+      const [ry, setRy] = useState(38);
+      const [drag, setDrag] = useState(false);
+      const drag$ = useRef({ on:false, lx:0, ly:0 });
+
+      useEffect(() => {
+        const mm = e => {
+          if (!drag$.current.on) return;
+          const cx = e.touches ? e.touches[0].clientX : e.clientX;
+          const cy = e.touches ? e.touches[0].clientY : e.clientY;
+          setRy(r => r + (cx - drag$.current.lx) * 0.55);
+          setRx(r => Math.max(-88, Math.min(88, r - (cy - drag$.current.ly) * 0.55)));
+          drag$.current.lx = cx; drag$.current.ly = cy;
+        };
+        const mu = () => { drag$.current.on = false; setDrag(false); };
+        window.addEventListener('mousemove', mm);
+        window.addEventListener('mouseup', mu);
+        window.addEventListener('touchmove', mm, { passive:true });
+        window.addEventListener('touchend', mu);
+        return () => { window.removeEventListener('mousemove',mm); window.removeEventListener('mouseup',mu); window.removeEventListener('touchmove',mm); window.removeEventListener('touchend',mu); };
+      }, []);
+
+      const start = e => {
+        drag$.current.on = true;
+        drag$.current.lx = e.touches ? e.touches[0].clientX : e.clientX;
+        drag$.current.ly = e.touches ? e.touches[0].clientY : e.clientY;
+        setDrag(true);
+      };
+
+      return (
+        <div onMouseDown={start} onTouchStart={start} className="no-sel"
+          style={{ width:320, height:320, perspective:1000, perspectiveOrigin:'50% 46%', display:'flex', alignItems:'center', justifyContent:'center', cursor: drag ? 'grabbing' : 'grab', flexShrink:0 }}
+        >
+          <div className="p3d" style={{ width:SZ, height:SZ, position:'relative', transform:`rotateX(${rx}deg) rotateY(${ry}deg)` }}>
+            {['F','B','U','D','L','R'].map(f => (
+              <Face3D key={f} name={f} stickers={cube[f]} onCW={() => onMove(f)} onCCW={() => onMove(f+"'")} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    /* ── Side panel: face move buttons ──────────────────────────────────── */
+
+    function FaceRow({ name, onMove }) {
+      const light = name === 'F' || name === 'B' || name === 'L' || name === 'R';
+      const [hCCW, setHCCW] = useState(false);
+      const [hCW,  setHCW]  = useState(false);
+      const btnBase = { flex:1, height:34, borderRadius:7, border:'1px solid rgba(255,255,255,0.1)', color:'white', fontFamily:'monospace', fontWeight:700, fontSize:14, cursor:'pointer', transition:'background 0.1s' };
+      return (
+        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', background:'rgba(255,255,255,0.04)', borderRadius:10, border:'1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ width:30, height:30, borderRadius:'50%', background:ACCENT[name], display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:800, fontFamily:'monospace', color: light?'#fff':'#111', border:'2px solid rgba(255,255,255,0.15)', flexShrink:0 }}>{name}</div>
+          <button
+            onClick={() => onMove(name+"'")}
+            onMouseEnter={() => setHCCW(true)} onMouseLeave={() => setHCCW(false)}
+            title={`${name}' – counter-clockwise`}
+            style={{ ...btnBase, background: hCCW ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)' }}
+          >↺ {name}'</button>
+          <button
+            onClick={() => onMove(name)}
+            onMouseEnter={() => setHCW(true)} onMouseLeave={() => setHCW(false)}
+            title={`${name} – clockwise`}
+            style={{ ...btnBase, background: hCW ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)' }}
+          >↻ {name}</button>
+        </div>
+      );
+    }
+
+    /* ── App ─────────────────────────────────────────────────────────────── */
+
+    const chipBg = m => ACCENT[m.replace("'","")];
+    const chipFg = m => { const f = m.replace("'",""); return (f==='U'||f==='D') ? '#111' : '#fff'; };
+
+    function App() {
+      const [cube,     setCube]     = useState(cp(SOLVED));
+      const [count,    setCount]    = useState(0);
+      const [hist,     setHist]     = useState([]);
+      const [win,      setWin]      = useState(false);
+
+      const doMove = useCallback(m => {
+        setCube(prev => {
+          const next = move(prev, m);
+          setCount(c => c + 1);
+          setHist(h => [...h, m].slice(-10));
+          setWin(solved(next));
+          return next;
+        });
+      }, []);
+
+      const doScramble = () => { const r = scramble(); setCube(r.state); setCount(0); setHist(r.hist.slice(-10)); setWin(false); };
+      const doReset    = () => { setCube(cp(SOLVED)); setCount(0); setHist([]); setWin(false); };
+
+      useEffect(() => {
+        const h = e => {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+          const m = KEYS[e.key];
+          if (m) { e.preventDefault(); doMove(m); }
+        };
+        window.addEventListener('keydown', h);
+        return () => window.removeEventListener('keydown', h);
+      }, [doMove]);
+
+      return (
+        <div style={{ minHeight:'100vh', background:'#030712', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:20, padding:'24px 16px' }}>
+
+          {/* title */}
+          <div style={{ textAlign:'center' }}>
+            <h1 style={{ fontSize:26, fontWeight:700, letterSpacing:'-0.3px' }}>2×2 Rubik's Cube</h1>
+            <p style={{ color:'rgba(255,255,255,0.3)', fontSize:12, marginTop:5 }}>
+              Hover any face → click ↺↻ &nbsp;·&nbsp; Drag cube to orbit &nbsp;·&nbsp; Keyboard: <kbd style={{ background:'rgba(255,255,255,0.1)', padding:'1px 5px', borderRadius:3, fontSize:11 }}>u d l r f b</kbd> (Shift = inverse)
+            </p>
+          </div>
+
+          {/* win banner */}
+          {win && (
+            <div style={{ background:'linear-gradient(135deg,#16a34a,#15803d)', padding:'10px 28px', borderRadius:14, fontSize:18, fontWeight:700, boxShadow:'0 4px 24px rgba(22,163,74,0.45)' }}>
+              🎉 Solved in {count} move{count!==1?'s':''}!
+            </div>
+          )}
+
+          {/* layout */}
+          <div style={{ display:'flex', flexWrap:'wrap', alignItems:'flex-start', justifyContent:'center', gap:28 }}>
+
+            {/* 3D cube */}
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+              <Cube3D cube={cube} onMove={doMove} />
+              <p style={{ fontSize:11, color:'rgba(255,255,255,0.2)', fontFamily:'monospace' }}>drag to spin · hover face to rotate</p>
+            </div>
+
+            {/* right panel */}
+            <div style={{ display:'flex', flexDirection:'column', gap:14, width:272 }}>
+
+              {/* counter + actions */}
+              <div style={{ display:'flex', gap:10 }}>
+                <div style={{ flex:'0 0 90px', background:'rgba(255,255,255,0.05)', borderRadius:12, padding:'10px 12px', textAlign:'center', border:'1px solid rgba(255,255,255,0.07)' }}>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.35)', fontFamily:'monospace', textTransform:'uppercase', letterSpacing:2, marginBottom:3 }}>Moves</div>
+                  <div style={{ fontSize:40, fontWeight:700, fontFamily:'monospace', lineHeight:1 }}>{count}</div>
+                </div>
+                <div style={{ flex:1, display:'flex', flexDirection:'column', gap:8 }}>
+                  <ActionBtn label="Scramble" color="#ca8a04" textColor="#111" onClick={doScramble} />
+                  <ActionBtn label="Reset"    color="rgba(255,255,255,0.08)" textColor="#fff" border onClick={doReset} />
+                </div>
+              </div>
+
+              {/* face moves */}
+              <Section title="Face Moves">
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {['U','D','L','R','F','B'].map(f => <FaceRow key={f} name={f} onMove={doMove} />)}
+                </div>
+              </Section>
+
+              {/* history */}
+              <Section title="Move History">
+                {hist.length === 0
+                  ? <div style={{ color:'rgba(255,255,255,0.2)', fontSize:13, textAlign:'center', padding:'6px 0' }}>No moves yet</div>
+                  : <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                      {hist.map((m,i) => (
+                        <span key={i} style={{ background:chipBg(m), color:chipFg(m), fontSize:11, fontFamily:'monospace', fontWeight:700, padding:'3px 8px', borderRadius:5, outline: i===hist.length-1 ? '2px solid rgba(255,255,255,0.4)' : 'none', outlineOffset:1 }}>{m}</span>
+                      ))}
+                    </div>
+                }
+              </Section>
+
+              {/* keyboard guide */}
+              <Section title="Keyboard Shortcuts">
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px 10px', fontSize:11, fontFamily:'monospace' }}>
+                  {['U','D','L','R','F','B'].map(f => (
+                    <div key={f} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                      <span style={{ background:'rgba(255,255,255,0.1)', padding:'1px 6px', borderRadius:3, color:'rgba(255,255,255,0.65)', border:'1px solid rgba(255,255,255,0.12)' }}>{f.toLowerCase()}</span>
+                      <span style={{ color:ACCENT[f], fontWeight:700 }}>{f}</span>
+                      <span style={{ color:'rgba(255,255,255,0.2)' }}>/ ⇧</span>
+                      <span style={{ color:ACCENT[f], fontWeight:700 }}>{f}'</span>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Section({ title, children }) {
+      return (
+        <div style={{ background:'rgba(255,255,255,0.03)', borderRadius:12, padding:'12px 14px', border:'1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', fontFamily:'monospace', textTransform:'uppercase', letterSpacing:2, marginBottom:10 }}>{title}</div>
+          {children}
+        </div>
+      );
+    }
+
+    function ActionBtn({ label, color, textColor, border, onClick }) {
+      const [h, setH] = useState(false);
+      return (
+        <button onClick={onClick}
+          onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+          style={{ flex:1, background: h ? color : color, filter: h ? 'brightness(1.15)' : 'brightness(1)', border: border ? '1px solid rgba(255,255,255,0.12)' : 'none', color:textColor, borderRadius:10, fontWeight:700, fontSize:13, cursor:'pointer', transition:'filter 0.12s' }}
+        >{label}</button>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+  <script>
+    // Manually transform and execute the JSX with classic runtime (avoids import issues)
+    (function() {
+      var src = document.getElementById('app-src').textContent;
+      var code = Babel.transform(src, {
+        presets: [['react', { runtime: 'classic' }]]
+      }).code;
+      // eslint-disable-next-line no-new-func
+      new Function(code)();
+    })();
+  </script>
+</body>
+</html>
